@@ -5,9 +5,7 @@ This guide outlines the project's file structure, architecture, and interface st
 
 ## Branches
 The project has three branches, each corresponding to a different platform:
-- **master**: macOS
-- **Win**: Windows
-- **Linux**: Linux
+- **master**: macOS & Windows & Linux
 
 Please select the appropriate branch based on your development environment.
 
@@ -92,7 +90,7 @@ class Module extends Base {
   /**
    * Fetch all available online packages
    */
-  async fetchAllOnLineVersion() {
+  async fetchAllOnlineVersion() {
     // Parse the official download page or GitHub release API
   }
 

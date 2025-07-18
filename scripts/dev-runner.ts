@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 import { createRequire } from 'node:module'
 import { ElectronKill, ElectronKillWin } from './electron-process-kill'
-import { isMacOS, isWindows } from '../src/shared/utils'
+import { isLinux, isMacOS, isWindows } from '../src/shared/utils'
 
 const require = createRequire(import.meta.url)
 
@@ -34,12 +34,12 @@ async function launchViteDevServer(openInBrowser = false) {
 }
 
 let building = false
-const buildCallBack: any = []
+const buildCallback: any = []
 
 function buildMainProcess() {
   return new Promise(async (resolve, reject) => {
     if (building) {
-      buildCallBack.push({
+      buildCallback.push({
         resolve,
         reject
       })
@@ -48,8 +48,8 @@ function buildMainProcess() {
     building = true
     await DoFix()
     let promise: Promise<any> | undefined
-    if (isMacOS()) {
-      console.log('isMacOS !!!')
+    if (isMacOS() || isLinux()) {
+      console.log('isMacOS || isLinux !!!')
       const config = (await import('../configs/esbuild.config')).default
       promise = Promise.all([
         build(config.dev),
@@ -60,33 +60,38 @@ function buildMainProcess() {
     } else if (isWindows()) {
       console.log('isWindows !!!')
       const config = (await import('../configs/esbuild.config.win')).default
-      promise = Promise.all([build(config.dev), build(config.devFork), ElectronKillWin()])
+      promise = Promise.all([
+        build(config.dev),
+        build(config.devFork),
+        build(config.devHelper),
+        ElectronKillWin()
+      ])
     }
     if (!promise) {
       building = false
-      buildCallBack.forEach((b: any) => {
+      buildCallback.forEach((b: any) => {
         b.reject(new Error('No PLATFORM provided'))
       })
-      buildCallBack.splice(0)
+      buildCallback.splice(0)
       reject(new Error('No PLATFORM provided'))
       return
     }
     promise
       .then(() => {
         building = false
-        buildCallBack.forEach((b: any) => {
+        buildCallback.forEach((b: any) => {
           b.resolve(true)
         })
-        buildCallBack.splice(0)
+        buildCallback.splice(0)
         resolve(true)
       })
       .catch((e) => {
         console.log('buildMainProcess error', e)
         building = false
-        buildCallBack.forEach((b: any) => {
+        buildCallback.forEach((b: any) => {
           b.reject(e)
         })
-        buildCallBack.splice(0)
+        buildCallback.splice(0)
         reject(e)
       })
   })

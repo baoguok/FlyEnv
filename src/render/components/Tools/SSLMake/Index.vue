@@ -10,44 +10,46 @@
       }}</el-button>
     </div>
 
-    <div class="main-wapper">
-      <div class="main flex flex-col gap-7 pt-7">
-        <el-input
-          v-model.trim="item.domains"
-          type="textarea"
-          :rows="6"
-          resize="none"
-          placeholder="Domains (Example: *.mydomain.tld), separated by line."
-          :style="{
-            '--el-input-border-color': errs['domains'] ? '#cc5441' : null
-          }"
-        ></el-input>
+    <el-scrollbar class="flex-1">
+      <div class="main-wapper">
+        <div class="main flex flex-col gap-7 pt-7">
+          <el-input
+            v-model.trim="item.domains"
+            type="textarea"
+            :rows="6"
+            resize="none"
+            placeholder="Domains (Example: *.mydomain.tld), separated by line."
+            :style="{
+              '--el-input-border-color': errs['domains'] ? '#cc5441' : null
+            }"
+          ></el-input>
 
-        <el-input
-          v-model="item.root"
-          :style="{
-            '--el-input-border-color': errs['root'] ? '#cc5441' : null
-          }"
-          placeholder="Root CA certificate path, if not choose, will create new in SSL certificate save path"
-        >
-          <template #append>
-            <el-button :icon="FolderOpened" @click.stop="chooseRoot('root', true)"></el-button>
-          </template>
-        </el-input>
+          <el-input
+            v-model="item.root"
+            :style="{
+              '--el-input-border-color': errs['root'] ? '#cc5441' : null
+            }"
+            placeholder="Root CA certificate path, if not choose, will create new in SSL certificate save path"
+          >
+            <template #append>
+              <el-button :icon="FolderOpened" @click.stop="chooseRoot('root', true)"></el-button>
+            </template>
+          </el-input>
 
-        <el-input
-          v-model="item.savePath"
-          :style="{
-            '--el-input-border-color': errs['savePath'] ? '#cc5441' : null
-          }"
-          placeholder="SSL certificate save path"
-        >
-          <template #append>
-            <el-button :icon="FolderOpened" @click.stop="chooseRoot('save')"></el-button>
-          </template>
-        </el-input>
+          <el-input
+            v-model="item.savePath"
+            :style="{
+              '--el-input-border-color': errs['savePath'] ? '#cc5441' : null
+            }"
+            placeholder="SSL certificate save path"
+          >
+            <template #append>
+              <el-button :icon="FolderOpened" @click.stop="chooseRoot('save')"></el-button>
+            </template>
+          </el-input>
+        </div>
       </div>
-    </div>
+    </el-scrollbar>
   </div>
 </template>
 
@@ -171,7 +173,7 @@
       if (!exists) {
         let command = `openssl genrsa -out "${caFileName}.key" 2048;`
         command += `openssl req -new -key "${caFileName}.key" -out "${caFileName}.csr" -sha256 -subj "/CN=Dev Root CA ${caFileName}";`
-        command += `echo "basicConstraints=CA:true" > "${caFileName}.cnf";`
+        command += `echo "basicConstraints = critical,CA:TRUE\nkeyUsage = critical,keyCertSign,cRLSign\nsubjectKeyIdentifier = hash\nauthorityKeyIdentifier = keyid:always,issuer" > "${caFileName}.cnf";`
         command += `openssl x509 -req -in "${caFileName}.csr" -signkey "${caFileName}.key" -out "${caFileName}.crt" -extfile "${caFileName}.cnf" -sha256 -days 3650;`
         await exec.exec(command, opt)
       }

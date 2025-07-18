@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <div class="main-wapper pb-0">
+    <div class="main-wapper pb-0 flex-1 overflow-hidden">
       <div class="main p-0">
         <el-autocomplete
           v-model.number="searchKey"
@@ -167,7 +167,7 @@
       IPC.off(key)
       const arr = res?.data ?? []
       if (arr.length === 0) {
-        MessageWarning(I18nT('base.processNoFound'))
+        MessageWarning(I18nT('base.processNotFound'))
         return
       }
 

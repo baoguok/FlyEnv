@@ -123,7 +123,7 @@
   import XTerm from '@/util/XTerm'
   import IPC from '@/util/IPC'
   import { MessageError } from '@/util/Element'
-  import { join, dirname } from 'path-browserify'
+  import { join, dirname } from '@/util/path-browserify'
   import { dialog, fs } from '@/util/NodeFn'
 
   const { show, onClosed, onSubmit, closedFn, callback } = AsyncComponentSetup()
@@ -214,7 +214,7 @@
     if (window.Server.Proxy) {
       for (const k in window.Server.Proxy) {
         const v = window.Server.Proxy[k]
-        command.push(`$Env:${k}="${v}"`)
+        command.push(`$env:${k}="${v}"`)
       }
     }
     command.push(`cd "${form.dir}"`)
@@ -234,10 +234,10 @@
       await fs.writeFile(join(form.dir, 'composer.json'), tmpl)
 
       if (form.php && form.composer) {
-        command.push(`$Env:PATH = "${dirname(form.php)};" + $Env:PATH`)
+        command.push(`$env:PATH = "${dirname(form.php)};" + $env:PATH`)
         command.push(`php "${form.composer}" update`)
       } else if (form.php) {
-        command.push(`$Env:PATH = "${dirname(form.php)};" + $Env:PATH`)
+        command.push(`$env:PATH = "${dirname(form.php)};" + $env:PATH`)
         command.push(`php composer update`)
       } else if (form.composer) {
         command.push(`php "${form.composer}" update`)
@@ -247,12 +247,12 @@
     } else {
       const name = app.value.package
       if (form.php && form.composer) {
-        command.push(`$Env:PATH = "${dirname(form.php)};" + $Env:PATH`)
+        command.push(`$env:PATH = "${dirname(form.php)};" + $env:PATH`)
         command.push(
           `php "${form.composer}" create-project --prefer-dist "${name}" "flyenv-create-project" "${form.version}"`
         )
       } else if (form.php) {
-        command.push(`$Env:PATH = "${dirname(form.php)};" + $Env:PATH`)
+        command.push(`$env:PATH = "${dirname(form.php)};" + $env:PATH`)
         command.push(
           `php composer create-project --prefer-dist "${name}" "flyenv-create-project" "${form.version}"`
         )
@@ -308,7 +308,7 @@
     }
     const execXTerm = ProjectSetup.execing.PHP
     execXTerm?.stop()?.then(() => {
-      execXTerm?.destory()
+      execXTerm?.destroy()
       created.value = false
       loading.value = false
       createFail.value = false
@@ -391,7 +391,7 @@ rewrite /wp-admin$ $scheme://$host$uri/ permanent;`
     const execXTerm = ProjectSetup.execing.PHP
     execXTerm?.unmounted()
     if (created.value) {
-      execXTerm?.destory()
+      execXTerm?.destroy()
       created.value = false
       loading.value = false
       delete ProjectSetup.execing.PHP
