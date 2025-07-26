@@ -1,8 +1,10 @@
-import { join, resolve, dirname } from 'path'
+import { join, resolve, dirname } from 'node:path'
 import _fs from 'fs-extra'
-import { exec } from 'child_process'
-import { promisify } from 'util'
+import { exec } from 'node:child_process'
+import { promisify } from 'node:util'
+import { existsSync } from 'node:fs'
 import { isLinux } from '../src/shared/utils'
+
 
 const { mkdirp, copyFile } = _fs
 const execPromise = promisify(exec)
@@ -26,14 +28,14 @@ export default async function after(pack) {
      */
 
     if (pack.arch === 1) {
-      const fromBinDir = resolve(pack.appOutDir, '../../build/bin/flyenv-helper-linux-amd64')
+      let fromBinDir = resolve(pack.appOutDir, '../../src/helper-go/dist/flyenv-helper-linux-amd64-v1')
       const toBinDir = join(pack.appOutDir, 'resources/helper/flyenv-helper')
       await mkdirp(dirname(toBinDir))
       await copyFile(fromBinDir, toBinDir)
     }
     // arm64
     else if (pack.arch === 3) {
-      const fromBinDir = resolve(pack.appOutDir, '../../build/bin/flyenv-helper-linux-arm64')
+      let fromBinDir = resolve(pack.appOutDir, '../../src/helper-go/dist/flyenv-helper-linux-arm64')
       const toBinDir = join(pack.appOutDir, 'resources/helper/flyenv-helper')
       await mkdirp(dirname(toBinDir))
       await copyFile(fromBinDir, toBinDir)
@@ -46,12 +48,11 @@ export default async function after(pack) {
     shFile = join(pack.appOutDir, 'resources/helper/flyenv-helper-init.sh')
     tmplFile = resolve(pack.appOutDir, '../../static/sh/Linux/flyenv-helper-init.sh')
     await copyFile(tmplFile, shFile)
-
     console.log('afterPack handle end !!!!!!')
     return
   }
   if (pack.arch === 1) {
-    const fromBinDir = resolve(pack.appOutDir, '../../build/bin/flyenv-helper-darwin-amd64')
+    const fromBinDir = resolve(pack.appOutDir, '../../src/helper-go/dist/flyenv-helper-darwin-amd64')
     const toBinDir = join(pack.appOutDir, 'FlyEnv.app/Contents/Resources/helper/flyenv-helper')
     await mkdirp(dirname(toBinDir))
     const command = `cp "${fromBinDir}" "${toBinDir}" && xattr -dr "com.apple.quarantine" "${toBinDir}" && chmod 755 "${toBinDir}"`
@@ -60,7 +61,7 @@ export default async function after(pack) {
   }
   // arm64
   else if (pack.arch === 3) {
-    const fromBinDir = resolve(pack.appOutDir, '../../build/bin/flyenv-helper-darwin-arm64')
+    const fromBinDir = resolve(pack.appOutDir, '../../src/helper-go/dist/flyenv-helper-darwin-arm64')
     const toBinDir = join(pack.appOutDir, 'FlyEnv.app/Contents/Resources/helper/flyenv-helper')
     await mkdirp(dirname(toBinDir))
     const command = `cp "${fromBinDir}" "${toBinDir}" && xattr -dr "com.apple.quarantine" "${toBinDir}" && chmod 755 "${toBinDir}"`
