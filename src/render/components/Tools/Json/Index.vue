@@ -14,7 +14,7 @@
           </el-tab-pane>
         </template>
       </el-tabs>
-      <div ref="mainRef" class="main pb-0">
+      <div ref="mainRef" class="main pb-0 pt-3">
         <div class="left" :style="leftStyle">
           <div class="top">
             <span>{{ currentType }}</span>
@@ -206,7 +206,7 @@
         return
       }
       fromEditor = EditorCreate(fromRef.value, await EditorConfigMake(currentValue.value))
-      fromEditor.onDidChangeModelContent(() => {
+      fromEditor?.onDidChangeModelContent?.(() => {
         if (!tabChanging) {
           currentValue.value = fromEditor?.getValue() ?? ''
           currentTab.value.checkFrom().catch()
@@ -221,7 +221,7 @@
         return
       }
       toEditor = EditorCreate(toRef.value, await EditorConfigMake(currentToValue.value))
-      toEditor.onDidChangeModelContent(() => {
+      toEditor?.onDidChangeModelContent?.(() => {
         if (!tabChanging) {
           currentToValue.value = toEditor?.getValue() ?? ''
         }
