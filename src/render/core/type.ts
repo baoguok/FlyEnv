@@ -66,7 +66,8 @@ export enum AppModuleEnum {
   'etcd' = 'etcd',
   'deno' = 'deno',
   'bun' = 'bun',
-  'perl' = 'perl'
+  'perl' = 'perl',
+  consul = 'consul'
 }
 
 export type AllAppModule = keyof typeof AppModuleEnum
@@ -123,9 +124,11 @@ type ToolType =
   | 'Math'
   | 'Measurement'
   | 'Text'
+  | 'Code'
   | 'Custom'
 
 export const AppToolType: ToolType[] = [
+  'Code',
   'Development',
   'Crypto',
   'Converter',
