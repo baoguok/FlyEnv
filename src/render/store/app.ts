@@ -98,6 +98,8 @@ type StateBase = SetupBase & {
   forceStart: boolean
   showAIRobot: boolean
   showTool?: boolean
+  consulBrewInitiated?: boolean
+  typesenseBrewInitiated?: boolean
   phpBrewInitiated: boolean
   mongodbBrewInitiated: boolean
   currentNodeTool: 'fnm' | 'nvm' | 'default'
@@ -107,6 +109,7 @@ type StateBase = SetupBase & {
   autoHide?: boolean
   autoLaunch?: boolean
   license?: string
+  trayMenuBarStyle?: 'classic' | 'modern'
 }
 
 interface State {

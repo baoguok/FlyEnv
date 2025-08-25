@@ -1,10 +1,8 @@
 import { createConnection } from 'net'
 import { uuid } from './Fn'
 import type { TaskItem } from '../helper/type'
-import { AppHelperCheck } from '@shared/AppHelperCheck'
+import { AppHelperCheck, AppHelperSocketPathGet } from '@shared/AppHelperCheck'
 import type { AppHelper } from '../main/core/AppHelper'
-
-const SOCKET_PATH = '/tmp/flyenv-helper.sock'
 
 type Module =
   | 'tools'
@@ -14,10 +12,8 @@ type Module =
   | 'php'
   | 'mailpit'
   | 'mysql'
-  | 'apache'
   | 'rabbitmq'
   | 'host'
-  | 'nginx'
 type FN =
   | 'writeFileByRoot'
   | 'readFileByRoot'
@@ -31,7 +27,7 @@ type FN =
   | 'kill'
   | 'binFixed'
   | 'ln_s'
-  | 'startService'
+  | 'exec'
   | 'initPlugin'
   | 'sslAddTrustedCert'
   | 'sslFindCertificate'
@@ -39,6 +35,8 @@ type FN =
   | 'killPorts'
   | 'getPortPids'
   | 'chmod'
+  | 'getPortPidsWin'
+  | 'processListWin'
 
 class Helper {
   enable = false
@@ -68,8 +66,9 @@ class Helper {
           return
         }
       }
+
       const key = uuid()
-      const client = createConnection(SOCKET_PATH)
+      const client = createConnection(AppHelperSocketPathGet())
       const buffer: Buffer[] = []
       client.on('connect', () => {
         const param: TaskItem = {

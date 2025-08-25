@@ -36,6 +36,9 @@ class Manager extends Base {
   Deno: any
   Bun: any
   Perl: any
+  Consul: any
+  Gradle: any
+  Typesense: any
 
   constructor() {
     super()
@@ -244,6 +247,24 @@ class Manager extends Base {
             this.Perl = res.default
           }
           versions.perl = this.Perl.allInstalledVersions(setup)
+        } else if (type === 'consul') {
+          if (!this.Consul) {
+            const res = await import('../Consul')
+            this.Consul = res.default
+          }
+          versions.consul = this.Consul.allInstalledVersions(setup)
+        } else if (type === 'gradle') {
+          if (!this.Gradle) {
+            const res = await import('../Gradle')
+            this.Gradle = res.default
+          }
+          versions.gradle = this.Gradle.allInstalledVersions(setup)
+        } else if (type === 'typesense') {
+          if (!this.Typesense) {
+            const res = await import('../Typesense')
+            this.Typesense = res.default
+          }
+          versions.typesense = this.Typesense.allInstalledVersions(setup)
         }
       }
       const keys: string[] = []

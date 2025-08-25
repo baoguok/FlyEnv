@@ -1,7 +1,7 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 try {
-    $taskName = "FlyEnvStartup"
+    $taskName = "#TASKNAME#"
     $exePath = "#EXECPATH#"
 
     if (-not (Test-Path -LiteralPath $exePath)) {
@@ -58,6 +58,11 @@ try {
     exit 0
 }
 catch {
-    Write-Host "Task Create Failed"
+    Write-Host "Task Create Failed, Error: $($_.Exception.Message)"
     exit 1
+}
+finally {
+  if ($xmlPath -and (Test-Path -LiteralPath $xmlPath)) {
+    Remove-Item -LiteralPath $xmlPath -Force -ErrorAction SilentlyContinue
+  }
 }

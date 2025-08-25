@@ -104,7 +104,6 @@
   import { AppServiceModule, type AppServiceModuleItem } from '@/core/ASide'
   import { type AllAppModule, AppModuleTypeList } from '@/core/type'
   import { AsyncComponentShow } from '@/util/AsyncComponent'
-  import { EventBus } from '@/global'
   import { AppCustomerModule } from '@/core/Module'
   import CustomerModule from '@/components/CustomerModule/aside.vue'
   import type { CallbackFn } from '@shared/app'
@@ -115,6 +114,8 @@
 
   const appStore = AppStore()
   const brewStore = BrewStore()
+
+  appStore.chechAutoHide()
 
   const currentPage = computed(() => {
     return appStore.currentPage
@@ -356,14 +357,16 @@
       .filter((f) => f.isService)
       .filter((a) => showItem.value?.[a.typeFlag] !== false)
       .map((m) => {
+        const emptyItem = m.item.length === 0
+        const running = m.item.some((s) => s.running)
         return {
           id: m.id,
           label: m.label,
           icon: m.icon,
           show: true,
-          disabled: false,
+          disabled: emptyItem || running,
           run: m.item.some((s) => s.run),
-          running: m.item.some((s) => s.running)
+          running
         }
       })
   })
@@ -403,9 +406,54 @@
       const current = JSON.stringify(v)
       if (lastTray !== current) {
         lastTray = current
-        console.log('trayStore changed: ', current)
-        IPC.send('APP:Tray-Store-Sync', JSON.parse(current)).then((key: string) => {
-          IPC.off(key)
+        const obj = JSON.parse(current)
+        const customerModule = obj.customerModule
+        for(const item of customerModule) {
+          item.isCustomer = true
+        }
+        delete obj.customerModule
+        console.log('allModule.value: ', allModule.value)
+        console.log('customerModule: ', customerModule)
+        const service = allModule.value
+          .map((m) => m.sub)
+          .flat()
+          .filter((f: any) => !f.isCustomer && (f.isService || f.isTray))
+          .map((m) => {
+            const key = m?.typeFlag ?? m?.id ?? ''
+            const item = obj[key]
+            delete obj[key]
+            const icon = m.icon
+            return new Promise((resolve) => {
+              if (typeof icon === 'string') {
+                resolve({
+                  ...item,
+                  id: m?.id,
+                  label: typeof m.label === 'function' ? m.label() : m.label,
+                  typeFlag: m?.typeFlag,
+                  icon
+                })
+              } else {
+                console.log('icon: ', icon)
+                icon.then((res: any) => {
+                  resolve({
+                    ...item,
+                    id: m?.id,
+                    label: typeof m.label === 'function' ? m.label() : m.label,
+                    typeFlag: m?.typeFlag,
+                    icon: res.default
+                  })
+                })
+              }
+            })
+          })
+
+        Promise.all(service).then((res) => {
+          const list = [...customerModule, ...res]
+          console.log('list: ', list)
+          obj.service = list
+          IPC.send('APP:Tray-Store-Sync', obj).then((key: string) => {
+            IPC.off(key)
+          })
         })
       }
     },
@@ -527,6 +575,10 @@
 
   const doAutoStart = () => {
     autoStarted = true
+    if (window.Server.isWindows) {
+      groupDo()
+      return
+    }
     IPC.send('APP:FlyEnv-Helper-Check').then((key: string, res: any) => {
       if (res?.code === 0 && res?.data) {
         groupDo()
