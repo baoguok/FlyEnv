@@ -11,6 +11,7 @@ import { shell, app } from '@/util/NodeFn'
 
 export interface AppHost {
   id: number
+  isAppPHPMyAdmin?: boolean
   isTop?: boolean
   isSorting?: boolean
   projectName?: string
@@ -98,6 +99,8 @@ type StateBase = SetupBase & {
   forceStart: boolean
   showAIRobot: boolean
   showTool?: boolean
+  consulBrewInitiated?: boolean
+  typesenseBrewInitiated?: boolean
   phpBrewInitiated: boolean
   mongodbBrewInitiated: boolean
   currentNodeTool: 'fnm' | 'nvm' | 'default'
@@ -107,6 +110,7 @@ type StateBase = SetupBase & {
   autoHide?: boolean
   autoLaunch?: boolean
   license?: string
+  trayMenuBarStyle?: 'classic' | 'modern'
 }
 
 interface State {

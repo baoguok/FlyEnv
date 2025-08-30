@@ -32,6 +32,7 @@ import type licenses from './zh/licenses.json'
 import type requestTimer from './zh/requestTimer.json'
 import type meilisearch from './zh/meilisearch.json'
 import type minio from './zh/minio.json'
+import type podman from './zh/podman.json'
 
 import ZH from './zh/index'
 import EN from './en/index'
@@ -42,6 +43,8 @@ import ID from './id/index'
 import FR from './fr/index'
 import IT from './it/index'
 import JA from './ja/index'
+import PT from './pt/index'
+import PTBR from './pt-br/index'
 
 type AppendStringToKeys<T extends object, Prefix extends string = ''> = {
   [K in keyof T]: K extends string
@@ -56,6 +59,7 @@ type AppendStringToKeys<T extends object, Prefix extends string = ''> = {
 }[keyof T] // Extract the union type of all values
 
 type LangKey =
+  | AppendStringToKeys<typeof podman, 'podman'>
   | AppendStringToKeys<typeof minio, 'minio'>
   | AppendStringToKeys<typeof meilisearch, 'meilisearch'>
   | AppendStringToKeys<typeof requestTimer, 'requestTimer'>
@@ -97,7 +101,9 @@ export const AppAllLang = {
   id: 'Bahasa Indonesia',
   fr: 'Français',
   it: 'Italiano',
-  ja: '日本語'
+  ja: '日本語',
+  pt: 'Português',
+  'pt-br': 'Português (Brasil)'
 }
 
 const lang = {
@@ -109,7 +115,9 @@ const lang = {
   ...ID,
   ...FR,
   ...IT,
-  ...JA
+  ...JA,
+  ...PT,
+  ...PTBR
 }
 
 let i18n: I18n

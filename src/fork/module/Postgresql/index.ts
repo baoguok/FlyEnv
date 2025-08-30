@@ -46,23 +46,44 @@ class Manager extends Base {
     version: SoftInstalled,
     DATA_DIR?: string
   ): ForkPromise<{ 'APP-Service-Stop-PID': number[] }> {
-    if (!isWindows()) {
-      return super._stopServer(version) as any
-    }
-
     return new ForkPromise(async (resolve, reject, on) => {
       const bin = version.bin
       const versionTop = version?.version?.split('.')?.shift() ?? ''
       const dbPath = DATA_DIR ?? join(global.Server.PostgreSqlDir!, `postgresql${versionTop}`)
       const logFile = join(dbPath, 'pg.log')
 
-      try {
-        await spawnPromise(basename(bin), ['stop', '-D', `"${dbPath}"`, '-l', `"${logFile}"`], {
-          cwd: dirname(bin),
-          shell: false
-        })
-      } catch (e) {
-        console.log('mongosh shutdown error: ', e)
+      const doStop = async () => {
+        try {
+          await spawnPromise(basename(bin), ['stop', '-D', dbPath, '-l', logFile], {
+            cwd: dirname(bin),
+            shell: false
+          })
+        } catch (e) {
+          console.log('PostgreSQL shutdown error: ', e)
+          console.log('PostgreSQL shutdown error version: ', version, bin)
+        }
+      }
+
+      if (!isWindows()) {
+        const pidFile = join(dbPath, 'postmaster.pid')
+        await doStop()
+        const check = async (times = 0) => {
+          if (times >= 10) {
+            console.log('times out: ', times)
+            return true
+          }
+          if (!existsSync(pidFile)) {
+            console.log('times success: ', times)
+            return true
+          } else {
+            await waitTime(1000)
+            await doStop()
+            return await check(times + 1)
+          }
+        }
+        await check()
+      } else {
+        await doStop()
       }
 
       const pids = new Set<string>()
@@ -155,14 +176,13 @@ export LANG="${global.Server.Local!}"
               on(I18nT('fork.postgresqlInit', { dir: dbPath }))
             }
             const pid = res['APP-Service-Start-PID'].trim().split('\n').shift()!.trim()
-            await writeFile(pidFile, pid)
             on({
               'APP-On-Log': AppLog('info', I18nT('appLog.startServiceSuccess', { pid: pid }))
             })
+            await waitTime(1000)
             resolve({
               'APP-Service-Start-PID': pid
             })
-            resolve(res)
           } catch (e: any) {
             console.log('-k start err: ', e)
             reject(e)

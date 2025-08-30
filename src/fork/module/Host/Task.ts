@@ -14,7 +14,8 @@ import {
   readdir,
   remove,
   writeFile,
-  moveDirToDir
+  moveDirToDir,
+  readFile
 } from '../../Fn'
 import { fetchHostList } from './HostFile'
 import { isWindows } from '@shared/utils'
@@ -148,6 +149,19 @@ export function TaskAddPhpMyAdminSite(this: any, phpVersion?: number, write = tr
           reject(new Error(I18nT('fork.downloadFileFail')))
           return
         }
+
+        if (isWindows()) {
+          const ini = join(siteDir, 'config.sample.inc.php')
+          if (existsSync(ini)) {
+            let content = await readFile(ini, 'utf-8')
+            content = content.replace(
+              `$cfg['Servers'][$i]['host'] = 'localhost';`,
+              `$cfg['Servers'][$i]['host'] = '127.0.0.1';\n$cfg['VersionCheck'] = false;`
+            )
+            const cpFile = join(siteDir, 'config.inc.php')
+            await writeFile(cpFile, content)
+          }
+        }
       }
 
       let useSSL = false
@@ -160,6 +174,7 @@ export function TaskAddPhpMyAdminSite(this: any, phpVersion?: number, write = tr
 
       const hostItem: any = {
         id: new Date().getTime(),
+        isAppPHPMyAdmin: true,
         name: 'phpmyadmin.test',
         alias: '',
         useSSL: useSSL,
@@ -191,12 +206,16 @@ export function TaskAddPhpMyAdminSite(this: any, phpVersion?: number, write = tr
         await this.handleHost(hostItem, 'add')
         await this.writeHosts(write, ipv6)
         await setDirRole(siteDir)
+        console.log('TaskAddPhpMyAdminSite end !!!')
         resolve(true)
       } catch (e) {
+        console.log('TaskAddPhpMyAdminSite error: ', e)
         reject(e)
       }
     }
+
     if (existsSync(zipFile)) {
+      on(100)
       doMake().then()
       return
     }

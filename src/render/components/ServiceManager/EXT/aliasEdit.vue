@@ -15,7 +15,7 @@
               <div class="title">
                 <span>{{ I18nT('base.phpVersion') }}</span>
               </div>
-              <el-select v-model="php" class="w-32" filterable :disabled="running">
+              <el-select v-model="php" class="w-64" filterable :disabled="running">
                 <el-option :value="undefined" :label="I18nT('service.useSysPHP')"></el-option>
                 <template v-for="(v, _k) in phpVersions" :key="_k">
                   <el-option :value="v.bin" :label="`${v.version}-${v.bin}`"></el-option>
@@ -75,10 +75,28 @@
 
   Object.assign(form.value, props.item)
 
+  const isMacOS = computed(() => {
+    return window.Server.isMacOS
+  })
+  const isWindows = computed(() => {
+    return window.Server.isWindows
+  })
+  const isLinux = computed(() => {
+    return window.Server.isLinux
+  })
+
   const phpVersions = computed(() => {
     return brewStore.module('php').installed.map((i) => {
+      let bin = ''
+      if (isWindows.value) {
+        bin = join(i.path, 'php.exe')
+      } else if (isMacOS.value) {
+        bin = i?.phpBin ?? join(i.path, 'bin/php')
+      } else {
+        bin = join(i.path, 'bin/php')
+      }
       return {
-        bin: i?.phpBin ?? join(i.path, 'bin/php'),
+        bin,
         version: i.version
       }
     })

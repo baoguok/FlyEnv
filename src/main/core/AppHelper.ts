@@ -1,8 +1,12 @@
 import { exec as Sudo } from '@shared/Sudo'
-import { join, resolve as PathResolve } from 'path'
+import { join, resolve as PathResolve, basename, dirname } from 'node:path'
 import is from 'electron-is'
-import { isLinux, isMacOS } from '@shared/utils'
+import { isLinux, isMacOS, isWindows } from '@shared/utils'
 import { AppHelperCheck } from '@shared/AppHelperCheck'
+import { tmpdir } from 'node:os'
+import { uuid } from '../utils'
+import { copyFile, chmod, mkdirp, readFile, writeFile } from '@shared/fs-extra'
+import type { CallbackFn } from '@shared/app'
 
 type AppHelperCallback = (
   state: 'needInstall' | 'installing' | 'installed' | 'installFaild' | 'checkSuccess'
@@ -14,49 +18,138 @@ export class AppHelper {
 
   private _onMessage?: AppHelperCallback
 
+  private _onSuduExecSuccess?: CallbackFn
+
   onStatusMessage(fn: AppHelperCallback) {
     this._onMessage = fn
   }
 
-  command() {
+  onSuduExecSuccess(fn: CallbackFn) {
+    this._onSuduExecSuccess = fn
+  }
+
+  async command() {
     let command = ''
     let icns = ``
 
+    const tmpDir = join(tmpdir(), uuid())
+    await mkdirp(tmpDir)
+    await chmod(tmpDir, '0755')
     if (is.production()) {
       if (isMacOS()) {
         const binDir = PathResolve(global.Server.Static!, '../../../../')
         const plist = join(binDir, 'plist/com.flyenv.helper.plist')
         const bin = join(binDir, 'helper/flyenv-helper')
-        command = `cd "${join(binDir, 'helper')}" && sudo chmod 777 ./flyenv-helper-init.sh && sudo ./flyenv-helper-init.sh "${plist}" "${bin}" `
+        const shDir = join(binDir, 'helper')
+        const shFile = join(shDir, 'flyenv-helper-init.sh')
+
+        const tmpFile = join(tmpDir, `${uuid()}.sh`)
+        await copyFile(shFile, tmpFile)
+        await chmod(tmpFile, '0755')
+
+        const tmpPlist = join(tmpDir, `${uuid()}.plist`)
+        await copyFile(plist, tmpPlist)
+        await chmod(tmpPlist, '0755')
+
+        const tmpBin = join(tmpDir, `${uuid()}.helper`)
+        await copyFile(bin, tmpBin)
+        await chmod(tmpBin, '0755')
+
+        command = `cd "${tmpDir}" && sudo /bin/zsh ./${basename(tmpFile)} "${tmpPlist}" "${tmpBin}" && sudo rm -rf "${tmpDir}"`
         icns = join(binDir, 'icon.icns')
       } else if (isLinux()) {
         const binDir = PathResolve(global.Server.Static!, '../../../../')
         const bin = join(binDir, 'helper/flyenv-helper')
-        command = `cd "${join(binDir, 'helper')}" && sudo chmod 777 ./flyenv-helper-init.sh && sudo ./flyenv-helper-init.sh "${bin}"`
+        const shDir = join(binDir, 'helper')
+        const shFile = join(shDir, 'flyenv-helper-init.sh')
+
+        const tmpFile = join(tmpDir, `${uuid()}.sh`)
+        await copyFile(shFile, tmpFile)
+        await chmod(tmpFile, '0755')
+
+        const tmpBin = join(tmpDir, `${uuid()}.helper`)
+        await copyFile(bin, tmpBin)
+        await chmod(tmpBin, '0755')
+
+        command = `cd "${tmpDir}" && sudo /bin/bash ./${basename(tmpFile)} "${tmpBin}" && sudo rm -rf "${tmpDir}"`
         icns = join(binDir, 'Icon@256x256.icns')
+      } else if (isWindows()) {
+        const binDir = PathResolve(global.Server.Static!, '../../../../')
+        const bin = join(binDir, 'helper/flyenv-helper.exe')
+        const tmpl = await readFile(
+          join(global.Server.Static!, 'sh/flyenv-auto-start-now.ps1'),
+          'utf-8'
+        )
+        const content = tmpl
+          .replace('#TASKNAME#', 'flyenv-helper')
+          .replace('#EXECPATH#', bin)
+          .replace('#DATAPATH#', dirname(global.Server.AppDir!))
+        const tmpFile = join(tmpDir, `${uuid()}.ps1`)
+        await writeFile(tmpFile, content)
+        command = `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { Unblock-File -LiteralPath '${tmpFile}'; & '${tmpFile}' } finally { Remove-Item -LiteralPath '${tmpDir}' -Recurse -Force -ErrorAction SilentlyContinue }"`
+        icns = join(binDir, 'icon.icns')
       }
     } else {
       if (isMacOS()) {
         const helperFile = global.Server.isArmArch
           ? 'flyenv-helper-darwin-arm64'
           : 'flyenv-helper-darwin-amd64'
-
         const binDir = PathResolve(global.Server.Static!, '../../../build/')
         const plist = join(binDir, 'plist/com.flyenv.helper.plist')
-        const bin = join(binDir, 'bin', helperFile)
+        const bin = PathResolve(binDir, `../src/helper-go/dist/${helperFile}`)
         const shDir = join(global.Server.Static!, 'sh')
-        command = `cd "${shDir}" && sudo chmod 777 ./flyenv-helper-init.sh && sudo ./flyenv-helper-init.sh "${plist}" "${bin}"`
+        const shFile = join(shDir, 'flyenv-helper-init.sh')
+
+        const tmpFile = join(tmpDir, `${uuid()}.sh`)
+        await copyFile(shFile, tmpFile)
+        await chmod(tmpFile, '0755')
+
+        const tmpPlist = join(tmpDir, 'com.flyenv.helper.plist')
+        await copyFile(plist, tmpPlist)
+        await chmod(tmpPlist, '0755')
+
+        const tmpBin = join(tmpDir, helperFile)
+        await copyFile(bin, tmpBin)
+        await chmod(tmpBin, '0755')
+
+        command = `cd "${tmpDir}" && sudo /bin/zsh ./${basename(tmpFile)} "${tmpPlist}" "${tmpBin}" && sudo rm -rf "${tmpDir}"`
         icns = join(binDir, 'icon.icns')
       } else if (isLinux()) {
         const helperFile = global.Server.isArmArch
           ? 'flyenv-helper-linux-arm64'
-          : 'flyenv-helper-linux-amd64'
-
+          : 'flyenv-helper-linux-amd64-v1'
         const binDir = PathResolve(global.Server.Static!, '../../../build/')
-        const bin = join(binDir, 'bin', helperFile)
+        const bin = PathResolve(binDir, `../src/helper-go/dist/${helperFile}`)
         const shDir = join(global.Server.Static!, 'sh')
-        command = `cd "${shDir}" && sudo chmod 777 ./flyenv-helper-init.sh && sudo ./flyenv-helper-init.sh "${bin}"`
+        const shFile = join(shDir, 'flyenv-helper-init.sh')
+
+        const tmpFile = join(tmpDir, `${uuid()}.sh`)
+        await copyFile(shFile, tmpFile)
+        await chmod(tmpFile, '0755')
+
+        const tmpBin = join(tmpDir, helperFile)
+        await copyFile(bin, tmpBin)
+        await chmod(tmpBin, '0755')
+
+        command = `cd "${tmpDir}" && sudo /bin/bash ./${basename(tmpFile)} "${tmpBin}" && sudo rm -rf "${tmpDir}"`
         icns = join(binDir, 'Icon@256x256.icns')
+      } else if (isWindows()) {
+        const helperFile = 'flyenv-helper-windows-amd64-v1.exe'
+        const binDir = PathResolve(global.Server.Static!, '../../../build/')
+        const bin = PathResolve(binDir, `../src/helper-go/dist/${helperFile}`)
+        const tmpl = await readFile(
+          join(global.Server.Static!, 'sh/flyenv-auto-start-now.ps1'),
+          'utf-8'
+        )
+        const content = tmpl
+          .replace('#TASKNAME#', 'flyenv-helper')
+          .replace('#EXECPATH#', bin)
+          .replace('#DATAPATH#', dirname(global.Server.AppDir!))
+
+        const tmpFile = join(tmpDir, `${uuid()}.ps1`)
+        await writeFile(tmpFile, content)
+        command = `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { Unblock-File -LiteralPath '${tmpFile}'; & '${tmpFile}' } finally { Remove-Item -LiteralPath '${tmpDir}' -Recurse -Force -ErrorAction SilentlyContinue }"`
+        icns = join(binDir, 'icon.icns')
       }
     }
 
@@ -97,6 +190,7 @@ export class AppHelper {
           .then(() => {
             this.state = 'normal'
             this?._onMessage?.('checkSuccess')
+            this?._onSuduExecSuccess?.()
             resolve(true)
           })
           .catch(() => {
@@ -108,7 +202,7 @@ export class AppHelper {
 
       this.state = 'installing'
 
-      const { command, icns } = this.command()
+      const { command, icns } = await this.command()
 
       Sudo(command, {
         name: 'FlyEnv',

@@ -14,7 +14,7 @@ import {
   writeFile,
   execPromiseSudo
 } from '../Fn'
-import { isMacOS, isWindows } from '@shared/utils'
+import { isMacOS } from '@shared/utils'
 
 export type ServiceStartParams = {
   version: SoftInstalled
@@ -84,7 +84,7 @@ export async function serviceStartExec(
   const shell = isMacOS() ? 'zsh' : 'bash'
   if (param?.root) {
     try {
-      res = await Helper.send('apache', 'startService', `${shell} "${psPath}"`)
+      res = await Helper.send('tools', 'exec', `${shell} "${psPath}"`)
     } catch (e) {
       error = e
     }
@@ -125,15 +125,6 @@ export async function serviceStartExec(
   res = await waitPidFile(pidPath, 0, maxTime, timeToWait)
   if (res) {
     if (res?.pid) {
-      try {
-        await writeFile(pidPath, res.pid)
-      } catch {
-        if (!isWindows()) {
-          try {
-            await Helper.send('tools', 'writeFileByRoot', pidPath, res.pid)
-          } catch {}
-        }
-      }
       on({
         'APP-On-Log': AppLog('info', I18nT('appLog.startServiceSuccess', { pid: res.pid }))
       })
@@ -214,7 +205,7 @@ export async function customerServiceStartExec(
   } catch {}
 
   try {
-    await Helper.send('tools', 'startService', `chown -R ${uid}:${gid} "${bin}"`)
+    await Helper.send('tools', 'exec', `chown -R ${uid}:${gid} "${bin}"`)
   } catch {}
 
   psScript = psScript
@@ -234,7 +225,7 @@ export async function customerServiceStartExec(
   } catch {}
 
   try {
-    await Helper.send('tools', 'startService', `chown -R ${uid}:${gid} "${psPath}"`)
+    await Helper.send('tools', 'exec', `chown -R ${uid}:${gid} "${psPath}"`)
   } catch {}
 
   const shell = isMacOS() ? 'zsh' : 'bash'
