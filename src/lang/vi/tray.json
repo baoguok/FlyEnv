@@ -1,4 +1,10 @@
 {
-  "showMainWin": "Hiện Cửa Sổ Chính",
-  "exit": "Thoát"
+  "showMainWin": "Hiển thị cửa sổ chính",
+  "exit": "Thoát",
+  "run": "Đang chạy",
+  "notRun": "Không chạy",
+  "trayMenuBarStyle": "Kiểu menu khay hệ thống",
+  "classic": "Cổ điển",
+  "modern": "Hiện đại",
+  "trayMenuBarStyleTips": "Chọn kiểu menu khay hệ thống. Trên một số desktop Linux, kiểu hiện đại có thể gặp sự cố, vì vậy bạn có thể chọn kiểu cổ điển thay thế."
 }

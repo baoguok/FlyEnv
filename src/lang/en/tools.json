@@ -37,5 +37,23 @@
   "url-encode-title": "URL Encode/Decode",
   "url-parse-title": "URL Parser",
   "wifi-qr-code-generator-title": "WiFi QR Code Generator",
-  "URLTimingAnalyzer": "URL Timing Analyzer"
+  "URLTimingAnalyzer": "URL Timing Analyzer",
+
+  "CodePlayGround": "Code Playground",
+  "CodeLibrary": "Code Library",
+  "GroupName": "Group Name",
+  "GroupNameInput": "Please Input Group Name",
+  "GroupDelTitle": "Delete Group",
+  "GroupDelTips": "Once the group is deleted, it cannot be recovered. All codes within the group will also be permanently deleted and cannot be restored.",
+  "Group": "Group",
+  "Code": "Code",
+  "CodeLanguage": "Code Language",
+  "CodeResult": "Code Result",
+  "NameNeed": "Please Input Name",
+  "CodeLanguageNeed": "Please Choose Code Language",
+  "BatchOperations": "Batch Operations",
+  "SelectAll": "Select All",
+  "MoveToTop": "Move To Top",
+  "MoveToGroup": "Move To Group",
+  "MarkdownPreview": "Markdown Preview"
 }

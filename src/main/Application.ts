@@ -66,7 +66,6 @@ export default class Application extends EventEmitter {
     this.initWindowManager()
     ScreenManager.initWatch()
     this.trayManager = new TrayManager()
-    this.initTrayManager()
     this.initUpdaterManager()
     this.handleCommands()
     this.handleIpcMessages()
@@ -99,9 +98,6 @@ export default class Application extends EventEmitter {
   }
 
   initAppHelper() {
-    if (isWindows()) {
-      return
-    }
     AppHelperRoleFix().catch()
     Helper.appHelper = AppHelper
     AppHelper.onStatusMessage((flag) => {
@@ -143,6 +139,9 @@ export default class Application extends EventEmitter {
           break
       }
     })
+    AppHelper.onSuduExecSuccess(() => {
+      this.makeServerDir()
+    })
   }
 
   initLang() {
@@ -167,6 +166,30 @@ export default class Application extends EventEmitter {
   }
 
   initTrayManager() {
+    this.trayManager.on('style-changed', (style: 'modern' | 'classic') => {
+      console.log('style-changed !!!', style)
+      if (style === 'modern') {
+        if (!this?.trayWindow) {
+          this.trayWindow = this.windowManager.openTrayWindow()
+          AppNodeFnManager.trayWindow = this.trayWindow
+          this.trayWindow.webContents.once('dom-ready', () => {
+            console.log('DOM 已准备好')
+            const command = 'APP:Tray-Store-Sync'
+            this.windowManager.sendCommandTo(
+              this.trayWindow!,
+              command,
+              command,
+              this.trayManager.status
+            )
+            this.trayManager.addModernStyleListener()
+          })
+        }
+      } else {
+        this.windowManager.destroyWindow('tray')
+        this.trayWindow = undefined
+        AppNodeFnManager.trayWindow = undefined
+      }
+    })
     this.trayManager.on('click', (x, y, poperX) => {
       if (!this?.trayWindow?.isVisible() || this?.trayWindow?.isFullScreen()) {
         this?.trayWindow?.setPosition(Math.round(x), Math.round(y))
@@ -187,6 +210,36 @@ export default class Application extends EventEmitter {
     this.trayManager.on('double-click', () => {
       this.show('index')
     })
+
+    this.trayManager.on(
+      'action',
+      (action: 'groupDo' | 'switchChange' | 'show' | 'exit', typeFlag?: string) => {
+        console.log('TrayManager action: ', action, typeFlag)
+        if (action === 'exit') {
+          this.emit('application:exit')
+        } else if (action === 'show') {
+          this.emit('application:show', 'index')
+        } else if (action === 'groupDo') {
+          this.windowManager.sendCommandTo(
+            this.mainWindow!,
+            'APP:Tray-Command',
+            'APP:Tray-Command',
+            'groupDo'
+          )
+        } else if (action === 'switchChange') {
+          this.windowManager.sendCommandTo(
+            this.mainWindow!,
+            'APP:Tray-Command',
+            'APP:Tray-Command',
+            'switchChange',
+            typeFlag
+          )
+        }
+      }
+    )
+
+    const style = this.configManager.getConfig('setup.trayMenuBarStyle') ?? 'modern'
+    this.trayManager.setStyle(style)
   }
 
   checkBrewOrPort() {
@@ -350,62 +403,26 @@ export default class Application extends EventEmitter {
     }
   }
 
-  initServerDir() {
-    console.log('userData: ', app.getPath('userData'))
-    let runpath = ''
-    if (isMacOS()) {
-      runpath = app.getPath('userData').replace('Application Support/', '')
-    } else if (isWindows()) {
-      runpath = resolve(app.getPath('exe'), '../../PhpWebStudy-Data').split('\\').join('/')
-      if (is.dev()) {
-        runpath = resolve(__static, '../../../data')
-      }
-    } else {
-      runpath = app.getPath('userData')
-    }
-    this.setProxy()
-    global.Server.UserHome = app.getPath('home')
-    global.Server.isArmArch = isArmArch()
-    global.Server.BaseDir = join(runpath, 'server')
-    global.Server.AppDir = join(runpath, 'app')
-    mkdirp(global.Server.BaseDir).then().catch()
-    mkdirp(global.Server.AppDir).then().catch()
-    global.Server.NginxDir = join(runpath, 'server/nginx')
-    global.Server.PhpDir = join(runpath, 'server/php')
-    global.Server.MysqlDir = join(runpath, 'server/mysql')
-    global.Server.MariaDBDir = join(runpath, 'server/mariadb')
-    global.Server.ApacheDir = join(runpath, 'server/apache')
-    global.Server.MemcachedDir = join(runpath, 'server/memcached')
-    global.Server.RedisDir = join(runpath, 'server/redis')
-    global.Server.MongoDBDir = join(runpath, 'server/mongodb')
-    global.Server.FTPDir = join(runpath, 'server/ftp')
-    global.Server.PostgreSqlDir = join(runpath, 'server/postgresql')
-    mkdirp(global.Server.NginxDir).then().catch()
-    mkdirp(global.Server.PhpDir).then().catch()
-    mkdirp(global.Server.MysqlDir).then().catch()
-    mkdirp(global.Server.MariaDBDir).then().catch()
-    mkdirp(global.Server.ApacheDir).then().catch()
-    mkdirp(global.Server.MemcachedDir).then().catch()
-    mkdirp(global.Server.RedisDir).then().catch()
-    mkdirp(global.Server.MongoDBDir).then().catch()
-    global.Server.Cache = join(runpath, 'server/cache')
-    mkdirp(global.Server.Cache).then().catch()
-    global.Server.Static = __static
-    global.Server.Arch = arch() === 'x64' ? 'x86_64' : 'arm64'
-    global.Server.Password = this.configManager.getConfig('password')
-    global.Server.isMacOS = isMacOS()
-    global.Server.isLinux = isLinux()
-    global.Server.isWindows = isWindows()
-    console.log('global.Server.Password: ', global.Server.Password)
-
+  makeServerDir() {
+    mkdirp(global.Server.BaseDir!).then().catch()
+    mkdirp(global.Server.AppDir!).then().catch()
+    mkdirp(global.Server.NginxDir!).then().catch()
+    mkdirp(global.Server.PhpDir!).then().catch()
+    mkdirp(global.Server.MysqlDir!).then().catch()
+    mkdirp(global.Server.MariaDBDir!).then().catch()
+    mkdirp(global.Server.ApacheDir!).then().catch()
+    mkdirp(global.Server.MemcachedDir!).then().catch()
+    mkdirp(global.Server.RedisDir!).then().catch()
+    mkdirp(global.Server.MongoDBDir!).then().catch()
+    mkdirp(global.Server.Cache!).then().catch()
     if (!isWindows()) {
-      const httpdcong = join(global.Server.ApacheDir, 'common/conf/')
+      const httpdcong = join(global.Server.ApacheDir!, 'common/conf/')
       mkdirp(httpdcong).then().catch()
 
-      const ngconf = join(global.Server.NginxDir, 'common/conf/nginx.conf')
+      const ngconf = join(global.Server.NginxDir!, 'common/conf/nginx.conf')
       if (!existsSync(ngconf)) {
         compressing.zip
-          .uncompress(join(__static, 'zip/nginx-common.zip'), global.Server.NginxDir)
+          .uncompress(join(__static, 'zip/nginx-common.zip'), global.Server.NginxDir!)
           .then(() => {
             readFile(ngconf, 'utf-8').then((content: string) => {
               content = content
@@ -421,6 +438,44 @@ export default class Application extends EventEmitter {
           .catch()
       }
     }
+  }
+
+  initServerDir() {
+    console.log('userData: ', app.getPath('userData'))
+    let runpath = ''
+    if (isMacOS()) {
+      runpath = app.getPath('userData').replace('Application Support/', '')
+    } else if (isWindows()) {
+      runpath = resolve(app.getPath('exe'), '../../PhpWebStudy-Data').split('\\').join('/')
+      if (is.dev()) {
+        runpath = resolve(__static, '../../../data')
+      }
+    } else {
+      runpath = resolve(app.getPath('userData'), '../FlyEnv')
+    }
+    this.setProxy()
+    global.Server.UserHome = app.getPath('home')
+    global.Server.isArmArch = isArmArch()
+    global.Server.BaseDir = join(runpath, 'server')
+    global.Server.AppDir = join(runpath, 'app')
+    global.Server.NginxDir = join(runpath, 'server/nginx')
+    global.Server.PhpDir = join(runpath, 'server/php')
+    global.Server.MysqlDir = join(runpath, 'server/mysql')
+    global.Server.MariaDBDir = join(runpath, 'server/mariadb')
+    global.Server.ApacheDir = join(runpath, 'server/apache')
+    global.Server.MemcachedDir = join(runpath, 'server/memcached')
+    global.Server.RedisDir = join(runpath, 'server/redis')
+    global.Server.MongoDBDir = join(runpath, 'server/mongodb')
+    global.Server.FTPDir = join(runpath, 'server/ftp')
+    global.Server.PostgreSqlDir = join(runpath, 'server/postgresql')
+    global.Server.Cache = join(runpath, 'server/cache')
+    global.Server.Static = __static
+    global.Server.Arch = arch() === 'x64' ? 'x86_64' : 'arm64'
+    global.Server.Password = this.configManager.getConfig('password')
+    global.Server.isMacOS = isMacOS()
+    global.Server.isLinux = isLinux()
+    global.Server.isWindows = isWindows()
+    this.makeServerDir()
   }
 
   initWindowManager() {
@@ -478,8 +533,7 @@ export default class Application extends EventEmitter {
     })
     ScreenManager.initWindow(win)
     ScreenManager.repositionAllWindows()
-    this.trayWindow = this.windowManager.openTrayWindow()
-    AppNodeFnManager.trayWindow = this.trayWindow
+    this.initTrayManager()
   }
 
   show(page = 'index') {
@@ -591,6 +645,7 @@ export default class Application extends EventEmitter {
       console.log('application:save-preference.config====>', config)
       this.configManager.setConfig(config)
       this.menuManager.rebuild()
+      this.trayManager.setStyle(config?.setup?.trayMenuBarStyle ?? 'modern')
     })
 
     this.on('application:relaunch', () => {
@@ -761,7 +816,9 @@ export default class Application extends EventEmitter {
 
     switch (command) {
       case 'APP:FlyEnv-Helper-Command':
-        this.windowManager.sendCommandTo(this.mainWindow!, command, key, AppHelper.command())
+        AppHelper.command().then((res) => {
+          this.windowManager.sendCommandTo(this.mainWindow!, command, key, res)
+        })
         break
       case 'APP:FlyEnv-Helper-Check':
         AppHelperCheck()
@@ -834,7 +891,10 @@ export default class Application extends EventEmitter {
         this.windowManager.sendCommandTo(this.mainWindow!, command, key)
         break
       case 'APP:Tray-Store-Sync':
-        this.windowManager.sendCommandTo(this.trayWindow!, command, command, args?.[0])
+        this.trayManager.menuChange(args?.[0])
+        if (this.trayWindow) {
+          this.windowManager.sendCommandTo(this.trayWindow!, command, command, args?.[0])
+        }
         break
       case 'APP:Tray-Command':
         this.windowManager.sendCommandTo(this.mainWindow!, command, command, ...args)

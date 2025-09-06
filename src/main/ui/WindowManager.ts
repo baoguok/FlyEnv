@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, nativeImage, screen } from 'electron'
 import pageConfig from '../configs/page'
 import { debounce } from 'lodash-es'
 import Event = Electron.Main.Event
@@ -126,6 +126,7 @@ export default class WindowManager extends EventEmitter {
     if (window) {
       window.show()
       window.focus()
+      console.log('openWindow !!!')
       return window
     }
     defaultBrowserOptions.webPreferences!.preload = join(
@@ -134,7 +135,8 @@ export default class WindowManager extends EventEmitter {
     )
     window = new BrowserWindow({
       ...defaultBrowserOptions,
-      ...pageOptions.attrs
+      ...pageOptions.attrs,
+      icon: nativeImage.createFromPath(join(global.__static, '512x512.png'))
     })
     window.webContents.on('before-input-event', (event, input) => {
       if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
@@ -150,6 +152,7 @@ export default class WindowManager extends EventEmitter {
 
     if (is.dev()) {
       window.loadURL(pageOptions.url).catch()
+      window.webContents.openDevTools()
     } else {
       window.loadFile(pageOptions.url).catch((e) => {
         AppStartErrorCallback(e).catch()
@@ -158,6 +161,7 @@ export default class WindowManager extends EventEmitter {
 
     window.once('ready-to-show', () => {
       if (!hidden) {
+        console.log('window.once ready-to-show !!!')
         window.show()
       }
     })
@@ -192,9 +196,7 @@ export default class WindowManager extends EventEmitter {
     const win = this.getWindow(page)
     this.removeWindow(page)
     if (win) {
-      win.removeAllListeners('closed')
-      win.removeAllListeners('move')
-      win.removeAllListeners('resize')
+      win.removeAllListeners()
       if (!win.isDestroyed()) {
         win.destroy()
       }
@@ -258,6 +260,7 @@ export default class WindowManager extends EventEmitter {
       return
     }
     window.show()
+    console.log('showWindow !!!')
     if (isMacOS()) {
       app.dock?.show?.()?.catch()
     }
@@ -288,6 +291,7 @@ export default class WindowManager extends EventEmitter {
       window.hide()
     } else {
       window.show()
+      console.log('toggleWindow !!!')
     }
   }
 

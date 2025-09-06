@@ -44,6 +44,14 @@ class BaseManager {
   Bun: any
   Perl: any
   DNS: any
+  Code: any
+  Consul: any
+  Gradle: any
+  Typesense: any
+  Project: any
+  Podman: any
+
+  modules: Set<string> = new Set()
 
   constructor() {}
 
@@ -53,9 +61,27 @@ class BaseManager {
     const ipcCommandKey = commands.shift()
     const then = (res: any) => {
       ProcessSendSuccess(ipcCommandKey, res)
+      const memoryUsage = process.memoryUsage()
+      console.log({
+        modules: Array.from(this.modules),
+        rss: `${Math.round((memoryUsage.rss / 1024 / 1024) * 100) / 100} MB`, // 常驻内存
+        heapTotal: `${Math.round((memoryUsage.heapTotal / 1024 / 1024) * 100) / 100} MB`, // 堆内存总量
+        heapUsed: `${Math.round((memoryUsage.heapUsed / 1024 / 1024) * 100) / 100} MB`, // 已用堆内存
+        external: `${Math.round((memoryUsage.external / 1024 / 1024) * 100) / 100} MB`, // 外部内存
+        arrayBuffers: `${Math.round((memoryUsage.arrayBuffers / 1024 / 1024) * 100) / 100} MB` // ArrayBuffer内存
+      })
     }
     const error = (e: Error) => {
       ProcessSendError(ipcCommandKey, e.toString())
+      const memoryUsage = process.memoryUsage()
+      console.log({
+        modules: Array.from(this.modules),
+        rss: `${Math.round((memoryUsage.rss / 1024 / 1024) * 100) / 100} MB`, // 常驻内存
+        heapTotal: `${Math.round((memoryUsage.heapTotal / 1024 / 1024) * 100) / 100} MB`, // 堆内存总量
+        heapUsed: `${Math.round((memoryUsage.heapUsed / 1024 / 1024) * 100) / 100} MB`, // 已用堆内存
+        external: `${Math.round((memoryUsage.external / 1024 / 1024) * 100) / 100} MB`, // 外部内存
+        arrayBuffers: `${Math.round((memoryUsage.arrayBuffers / 1024 / 1024) * 100) / 100} MB` // ArrayBuffer内存
+      })
     }
     const onData = (log: string) => {
       ProcessSendLog(ipcCommandKey, log)
@@ -63,6 +89,8 @@ class BaseManager {
 
     const module: string = commands.shift()
     const fn: string = commands.shift()
+
+    this.modules.add(module)
 
     const doRun = (module: any) => {
       module?.init?.()
@@ -340,6 +368,44 @@ class BaseManager {
         this.DNS = res.default
       }
       doRun(this.DNS)
+    } else if (module === 'code') {
+      console.log('codeRun 00: ', Math.round(new Date().getTime() / 1000))
+      if (!this.Code) {
+        const res = await import('./module/Code')
+        this.Code = res.default
+      }
+      console.log('codeRun 11: ', Math.round(new Date().getTime() / 1000))
+      doRun(this.Code)
+    } else if (module === 'consul') {
+      if (!this.Consul) {
+        const res = await import('./module/Consul')
+        this.Consul = res.default
+      }
+      doRun(this.Consul)
+    } else if (module === 'gradle') {
+      if (!this.Gradle) {
+        const res = await import('./module/Gradle')
+        this.Gradle = res.default
+      }
+      doRun(this.Gradle)
+    } else if (module === 'typesense') {
+      if (!this.Typesense) {
+        const res = await import('./module/Typesense')
+        this.Typesense = res.default
+      }
+      doRun(this.Typesense)
+    } else if (module === 'project') {
+      if (!this.Project) {
+        const res = await import('./module/Project')
+        this.Project = res.default
+      }
+      doRun(this.Project)
+    } else if (module === 'podman') {
+      if (!this.Podman) {
+        const res = await import('./module/Podman')
+        this.Podman = res.default
+      }
+      doRun(this.Podman)
     } else {
       ProcessSendError(ipcCommandKey, 'No Found Module')
     }

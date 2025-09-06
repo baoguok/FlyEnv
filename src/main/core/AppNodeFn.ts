@@ -2,25 +2,28 @@ import { address } from 'neoip'
 import { BrowserWindow, clipboard, nativeTheme, app, dialog, shell } from 'electron'
 import { createRequire } from 'node:module'
 import ConfigManager from './ConfigManager'
-import { exec } from 'node:child_process'
-import { type FSWatcher, rm, chmod, stat, existsSync, watch, createReadStream } from 'node:fs'
+import { execPromise } from '@shared/child-process'
+import { type FSWatcher, rm, stat, existsSync, watch, createReadStream } from 'node:fs'
 import { join } from 'node:path'
 import { readdir } from 'node:fs/promises'
 import Helper from '../../fork/Helper'
-import { resolve } from 'path'
+import { resolve as PathResolve, resolve } from 'path'
 import ZH from '@lang/zh'
 import EN from '@lang/en'
 import { AppAllLang, AppI18n } from '@lang/index'
 import { createMarkdownRenderer } from '@/util/markdown/markdown'
-import { isLinux, isMacOS, pathFixedToUnix } from '@shared/utils'
+import { isLinux, isMacOS, isWindows, pathFixedToUnix } from '@shared/utils'
 import { realpath } from '@shared/fs-extra'
 import { parse as TOMLParse, stringify as TOMLStringify } from '@iarna/toml'
-import { copy, mkdirp, writeFile, readFile, copyFile } from '@shared/fs-extra'
+import { copy, mkdirp, writeFile, readFile, copyFile, chmod, remove } from '@shared/fs-extra'
 import crypto from 'node:crypto'
+import is from 'electron-is'
+import { homedir } from 'node:os'
 
 const require = createRequire(import.meta.url)
 
 const { pki } = require('node-forge')
+const { types, extensions } = require('mime-types')
 
 async function readdirRecursive(dir: string): Promise<string[]> {
   const items = await readdir(dir, { withFileTypes: true })
@@ -74,6 +77,10 @@ export class AppNodeFn {
   private fileWatchers: Map<string, WatcherItem> = new Map()
   private dirWatchers: Map<string, WatcherItem> = new Map()
 
+  mime_types(command: string, key: string) {
+    this?.mainWindow?.webContents.send('command', command, key, { types, extensions })
+  }
+
   ip_address(command: string, key: string) {
     const ip = address() ?? ''
     this?.mainWindow?.webContents.send('command', command, key, ip)
@@ -116,19 +123,19 @@ export class AppNodeFn {
   nativeTheme_shouldUseDarkColors(command: string, key: string) {
     const isDark = nativeTheme.shouldUseDarkColors
     console.log('nativeTheme_shouldUseDarkColors: ', command, key, isDark)
-    this?.mainWindow?.webContents.send('command', command, key, isDark)
-    this?.trayWindow?.webContents.send('command', command, key, isDark)
+    this?.mainWindow?.webContents?.send?.('command', command, key, isDark)
+    this?.trayWindow?.webContents?.send?.('command', command, key, isDark)
   }
 
   nativeTheme_watch() {
     nativeTheme.on('updated', () => {
-      this?.mainWindow?.webContents.send(
+      this?.mainWindow?.webContents?.send?.(
         'command',
         'App-Native-Theme-Update',
         'App-Native-Theme-Update',
         true
       )
-      this?.trayWindow?.webContents.send(
+      this?.trayWindow?.webContents?.send?.(
         'command',
         'App-Native-Theme-Update',
         'App-Native-Theme-Update',
@@ -138,13 +145,21 @@ export class AppNodeFn {
   }
 
   toml_parse(command: string, key: string, json: any) {
-    const res = TOMLParse(json)
-    this?.mainWindow?.webContents.send('command', command, key, res)
+    try {
+      const res = TOMLParse(json)
+      this?.mainWindow?.webContents.send('command', command, key, res)
+    } catch {
+      this?.mainWindow?.webContents.send('command', command, key, null)
+    }
   }
 
   toml_stringify(command: string, key: string, json: any) {
-    const res = TOMLStringify(json)
-    this?.mainWindow?.webContents.send('command', command, key, res)
+    try {
+      const res = TOMLStringify(json)
+      this?.mainWindow?.webContents.send('command', command, key, res)
+    } catch {
+      this?.mainWindow?.webContents.send('command', command, key, null)
+    }
   }
 
   app_getPath(command: string, key: string, flag: AppPathFlag) {
@@ -158,8 +173,116 @@ export class AppNodeFn {
     this?.mainWindow?.webContents?.send('command', command, key, config)
   }
 
+  private async linuxAutoLaunch(autoLaunch: boolean) {
+    if (autoLaunch) {
+      let icon = ''
+      if (is.production()) {
+        const binDir = PathResolve(global.Server.Static!, '../../../../')
+        icon = join(binDir, 'helper/512x512.png')
+      } else {
+        icon = join(global.Server.Static!, '512x512.png')
+      }
+
+      const desktopFileContent = `[Desktop Entry]
+Type=Application
+Name=${app.name}
+Exec=${app.getPath('exe')}
+Icon=${icon}
+StartupNotify=false
+Terminal=false
+X-GNOME-Autostart-enabled=true`
+
+      const autostartDir = join(homedir(), '.config', 'autostart')
+      await mkdirp(autostartDir)
+      const desktopFilePath = join(autostartDir, `${app.name}.desktop`)
+      await writeFile(desktopFilePath, desktopFileContent)
+      await chmod(desktopFilePath, '0755')
+    } else {
+      const desktopFilePath = join(
+        require('os').homedir(),
+        '.config',
+        'autostart',
+        `${app.name}.desktop`
+      )
+
+      if (existsSync(desktopFilePath)) {
+        await remove(desktopFilePath)
+      }
+    }
+  }
+
+  private async windowsAutoLaunch(autoLaunch: boolean) {
+    const exePath = app.getPath('exe').replace(/"/g, '\\"')
+    console.log('exePath: ', exePath)
+    const taskName = 'FlyEnvStartup'
+    if (autoLaunch) {
+      const tmpl = await readFile(join(global.Server.Static!, 'sh/flyenv-auto-start.ps1'), 'utf-8')
+      const content = tmpl.replace('#TASKNAME#', taskName).replace('#EXECPATH#', exePath)
+      await mkdirp(global.Server.Cache!)
+      const file = join(global.Server.Cache!, 'flyenv-auto-start.ps1')
+      await writeFile(file, content)
+      const command = `Unblock-File -LiteralPath '${file}'; & '${file}'`
+      const res: any = await Helper.send('tools', 'exec', command)
+      await remove(file)
+      const std = res.stdout + res.stderr
+      if (std.includes(`Task Create Success: FlyEnvStartup`)) {
+        return true
+      }
+      throw new Error(res.stderr)
+    } else {
+      try {
+        await Helper.send('tools', 'exec', `schtasks.exe /delete /tn "${taskName}" /f`)
+      } catch {}
+      return true
+    }
+  }
+
   app_setLoginItemSettings(command: string, key: string, param: any) {
-    app.setLoginItemSettings(param)
+    const obj = {
+      openAtLogin: param?.openAtLogin ?? false
+    }
+    console.log('app_setLoginItemSettings: ', param, obj)
+
+    if (isWindows()) {
+      this.windowsAutoLaunch(obj.openAtLogin)
+        .then(() => {
+          this?.mainWindow?.webContents.send('command', command, key, true)
+        })
+        .catch((error) => {
+          this?.mainWindow?.webContents.send('command', command, key, `${error}`)
+        })
+      return
+    }
+
+    if (isLinux()) {
+      this.linuxAutoLaunch(obj.openAtLogin)
+        .then(() => {
+          this?.mainWindow?.webContents.send('command', command, key, true)
+        })
+        .catch((error) => {
+          this?.mainWindow?.webContents.send('command', command, key, `${error}`)
+        })
+      return
+    }
+
+    app.setLoginItemSettings(obj)
+    if (!obj.openAtLogin && isMacOS()) {
+      try {
+        if (is.production()) {
+          Helper.send(
+            'tools',
+            'exec',
+            `osascript -e 'tell application "System Events" to delete login item "FlyEnv"'`
+          ).catch()
+        } else {
+          Helper.send(
+            'tools',
+            'exec',
+            `osascript -e 'tell application "System Events" to delete login item "Electron"'`
+          ).catch()
+        }
+      } catch {}
+    }
     this?.mainWindow?.webContents.send('command', command, key, true)
   }
 
@@ -201,19 +324,30 @@ export class AppNodeFn {
   }
 
   exec_exec(command: string, key: string, cmd: string, opt: any) {
-    exec(cmd, opt, (error, stdout, stderr) => {
-      this?.mainWindow?.webContents.send('command', command, key, {
-        error,
-        stdout,
-        stderr
+    execPromise(cmd, opt)
+      .then((res) => {
+        this?.mainWindow?.webContents.send('command', command, key, {
+          stdout: res.stdout.toString(),
+          stderr: res.stderr.toString()
+        })
       })
-    })
+      .catch((err) => {
+        this?.mainWindow?.webContents.send('command', command, key, {
+          error: `${err}`,
+          stdout: '',
+          stderr: ''
+        })
+      })
   }
 
   fs_chmod(command: string, key: string, path: string, mode: string | number) {
-    chmod(path, mode, (err) => {
-      this?.mainWindow?.webContents.send('command', command, key, !err)
-    })
+    chmod(path, mode)
+      .then(() => {
+        this?.mainWindow?.webContents.send('command', command, key, true)
+      })
+      .catch(() => {
+        this?.mainWindow?.webContents.send('command', command, key, false)
+      })
   }
 
   fs_remove(command: string, key: string, path: string) {
@@ -229,17 +363,13 @@ export class AppNodeFn {
         this?.mainWindow?.webContents.send('command', command, key, true)
       })
       .catch(() => {
-        if (isMacOS() || isLinux()) {
-          Helper.send('tools', 'writeFileByRoot', path, data)
-            .then(() => {
-              this?.mainWindow?.webContents.send('command', command, key, true)
-            })
-            .catch(() => {
-              this?.mainWindow?.webContents.send('command', command, key, false)
-            })
-        } else {
-          this?.mainWindow?.webContents.send('command', command, key, false)
-        }
+        Helper.send('tools', 'writeFileByRoot', path, data)
+          .then(() => {
+            this?.mainWindow?.webContents.send('command', command, key, true)
+          })
+          .catch(() => {
+            this?.mainWindow?.webContents.send('command', command, key, false)
+          })
       })
   }
 
@@ -323,17 +453,13 @@ export class AppNodeFn {
         this?.mainWindow?.webContents.send('command', command, key, data)
       })
       .catch(() => {
-        if (isMacOS() || isLinux()) {
-          Helper.send('tools', 'readFileByRoot', path)
-            .then((data) => {
-              this?.mainWindow?.webContents.send('command', command, key, data)
-            })
-            .catch(() => {
-              this?.mainWindow?.webContents.send('command', command, key, '')
-            })
-        } else {
-          this?.mainWindow?.webContents.send('command', command, key, '')
-        }
+        Helper.send('tools', 'readFileByRoot', path)
+          .then((data) => {
+            this?.mainWindow?.webContents.send('command', command, key, data)
+          })
+          .catch(() => {
+            this?.mainWindow?.webContents.send('command', command, key, '')
+          })
       })
   }
 
@@ -343,17 +469,13 @@ export class AppNodeFn {
         this?.mainWindow?.webContents.send('command', command, key, true)
       })
       .catch(() => {
-        if (isMacOS() || isLinux()) {
-          Helper.send('tools', 'writeFileByRoot', path, data)
-            .then(() => {
-              this?.mainWindow?.webContents.send('command', command, key, true)
-            })
-            .catch(() => {
-              this?.mainWindow?.webContents.send('command', command, key, false)
-            })
-        } else {
-          this?.mainWindow?.webContents.send('command', command, key, false)
-        }
+        Helper.send('tools', 'writeFileByRoot', path, data)
+          .then(() => {
+            this?.mainWindow?.webContents.send('command', command, key, true)
+          })
+          .catch(() => {
+            this?.mainWindow?.webContents.send('command', command, key, false)
+          })
       })
   }
 

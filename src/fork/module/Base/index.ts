@@ -4,7 +4,6 @@ import { dirname, join } from 'path'
 import type { OnlineVersionItem, SoftInstalled } from '@shared/app'
 import {
   AppLog,
-  execPromise,
   execPromiseWithEnv,
   waitTime,
   readFile,
@@ -20,8 +19,8 @@ import * as https from 'https'
 import { type PItem, ProcessSearch } from '@shared/Process'
 import Helper from '../../Helper'
 import { isLinux, isMacOS, isWindows } from '@shared/utils'
-import { ProcessPidList } from '@shared/Process.win'
 import { unpack } from '../../util/Zip'
+import { ProcessPidList } from '@shared/Process.win'
 
 export class Base {
   type: string
@@ -85,8 +84,8 @@ export class Base {
     })
   }
 
-  stopService(version: SoftInstalled) {
-    return this._stopServer(version)
+  stopService(version: SoftInstalled, ...args: any) {
+    return this._stopServer(version, ...args)
   }
 
   startService(version: SoftInstalled, ...args: any) {
@@ -103,7 +102,7 @@ export class Base {
         this._linkVersion(version)
       } catch {}
       try {
-        await this._stopServer(version).on(on)
+        await this._stopServer(version, ...args).on(on)
         const res = await this._startServer(version, ...args).on(on)
         if (res?.['APP-Service-Start-PID']) {
           const pid = res['APP-Service-Start-PID']
@@ -118,8 +117,9 @@ export class Base {
     })
   }
 
-  _stopServer(version: SoftInstalled) {
+  _stopServer(version: SoftInstalled, ...args: any) {
     console.log(version)
+    console.log(args)
     return new ForkPromise(async (resolve, reject, on) => {
       on({
         'APP-On-Log': AppLog('info', I18nT('appLog.stopServiceBegin', { service: this.type }))
@@ -195,9 +195,8 @@ export class Base {
       const arr: string[] = Array.from(new Set(allPid))
       if (isWindows()) {
         if (arr.length > 0) {
-          const str = arr.map((s) => `/pid ${s}`).join(' ')
           try {
-            await execPromise(`taskkill /f /t ${str}`)
+            await Helper.send('tools', 'kill', '-INT', arr)
           } catch {}
         }
       } else {
@@ -354,6 +353,11 @@ export class Base {
       on({
         'APP-On-Log': AppLog('info', I18nT('appLog.startInstall', { service: row?.name ?? '' }))
       })
+      try {
+        await mkdirp(global.Server.Cache!)
+        await mkdirp(global.Server.AppDir!)
+      } catch {}
+
       const refresh = () => {
         row.downloaded = existsSync(row.zip)
         row.installed = existsSync(row.bin)
